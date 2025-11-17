@@ -1,0 +1,31 @@
+# FastAPI 프레임워크
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Pydantic V2
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Neo4j 드라이버
+neo4j==5.14.0
+
+# LLM
+openai==1.3.0
+anthropic==0.7.0
+
+# Kafka
+kafka-python==2.0.2
+aiokafka==0.9.0
+
+# YAML 파싱 (룰 엔진)
+PyYAML==6.0.1
+
+# 유틸리티
+python-dotenv==1.0.0
+httpx==0.25.0
+
+# 테스트
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0

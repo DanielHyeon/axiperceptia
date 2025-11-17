@@ -1,0 +1,62 @@
+rule: validate_order_total
+given:
+  aggregate: Order
+  state: draft
+when:
+  event: ORDER_LINE_ADDED
+then:
+  - action: recalculate_total
+    params:
+      formula: "SUM(order_lines.price * order_lines.quantity)"
+  - condition: total > 1000000
+    then_actions:
+      - action: require_approval
+        params:
+          approver_role: "manager"
+      - action: emit_event
+        params:
+          event: HIGH_VALUE_ORDER_DETECTED
+
+---
+
+rule: complete_order_on_payment
+given:
+  aggregate: Order
+  state: pending
+when:
+  event: PAYMENT_COMPLETED
+then:
+  - action: update_state
+    params:
+      new_state: "paid"
+  - action: emit_event
+    params:
+      event: ORDER_COMPLETED
+  - action: call_command
+    params:
+      command: CreateShipment
+      aggregate_type: Shipment
+      params:
+        order_id: "$aggregate_id"
+
+---
+
+rule: cancel_order_validation
+given:
+  aggregate: Order
+when:
+  event: CANCEL_ORDER_REQUESTED
+then:
+  - condition: state == "paid"
+    then_actions:
+      - action: reject
+        params:
+          reason: "Cannot cancel paid order"
+  - condition: state == "draft"
+    then_actions:
+      - action: update_state
+        params:
+          new_state: "cancelled"
+      - action: emit_event
+        params:
+          event: ORDER_CANCELLED
