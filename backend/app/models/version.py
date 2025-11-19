@@ -33,7 +33,7 @@ class ProjectVersion(BaseModel):
     """프로젝트 버전 정보"""
     id: Optional[str] = None
     name: str = Field(..., min_length=1)
-    description: str = Field(..., min_length=1)
+    description: str = ""
     version: int = 1
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

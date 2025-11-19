@@ -1,217 +1,75 @@
 <template>
   <div class="event-storm-container">
-    <div class="input-panel">
-      <div class="panel-top-bar">
+    <!-- Left Sidebar: Input & Controls -->
+    <div class="sidebar-panel card glass">
+      <div class="panel-header">
         <h2>🚀 비즈니스 설명</h2>
-        <div class="version-controls">
-          <button @click="showVersionList = !showVersionList" class="btn-info btn-sm">
-            📂 버전 목록 ({{ versions.length }})
+        <div class="header-actions">
+          <button @click="showVersionList = !showVersionList" class="btn-icon" title="버전 목록">
+            📂
           </button>
-          <button @click="showSaveDialog = true" class="btn-success btn-sm" :disabled="!businessDescription.trim()">
-            💾 저장
+          <button @click="showSaveDialog = true" class="btn-icon" :disabled="!businessDescription.trim()" title="저장">
+            💾
           </button>
         </div>
       </div>
 
-      <div v-if="currentVersion" class="current-version-info">
-        <span>현재 버전: <strong>{{ currentVersion.name }}</strong> (v{{ currentVersion.version }})</span>
-        <button @click="clearCurrentVersion" class="btn-link">새로 시작</button>
+      <div v-if="currentVersion" class="version-badge-display">
+        <span class="badge-primary">{{ currentVersion.name }} v{{ currentVersion.version }}</span>
+        <button @click="clearCurrentVersion" class="btn-text-xs">새로 시작</button>
       </div>
 
-      <textarea
-        v-model="businessDescription"
-        placeholder="예: 고객이 주문하면 결제가 처리되고 배송이 시작됩니다..."
-        rows="8"
-      />
+      <div class="input-area">
+        <textarea
+          v-model="businessDescription"
+          placeholder="비즈니스 시나리오를 입력하세요...
+예: 고객이 주문하면 결제가 처리되고 배송이 시작됩니다."
+          rows="12"
+          class="premium-input"
+        />
+      </div>
+
       <div class="action-buttons">
         <button
           @click="analyze"
           :disabled="isAnalyzing || !businessDescription.trim()"
-          class="btn-primary"
+          class="btn btn-primary btn-block"
         >
-          {{ isAnalyzing ? '분석 중...' : '이벤트 스토밍 분석' }}
+          <span v-if="isAnalyzing" class="spinner"></span>
+          {{ isAnalyzing ? '분석 중...' : '✨ 이벤트 스토밍 분석' }}
         </button>
 
         <button
           @click="showOntologyVersionList = true"
-          class="btn-info"
+          class="btn btn-secondary btn-block"
         >
           🗄️ Neo4j에서 불러오기
         </button>
       </div>
 
-      <div v-if="error" class="error-message">
-        {{ error }}
+      <div v-if="error" class="error-message animate-fade-in">
+        ⚠️ {{ error }}
       </div>
-    </div>
-
-    <!-- 버전 목록 모달 -->
-    <div v-if="showVersionList" class="modal-overlay" @click.self="showVersionList = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>📂 저장된 버전 목록</h3>
-          <button @click="showVersionList = false" class="btn-close">×</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="versions.length === 0" class="empty-state">
-            저장된 버전이 없습니다.
-          </div>
-          <div v-else class="version-list">
-            <div v-for="version in versions" :key="version.id" class="version-item">
-              <div class="version-info">
-                <h4>{{ version.name }} <span class="version-badge">v{{ version.version }}</span></h4>
-                <p>{{ version.description }}</p>
-                <div class="version-meta">
-                  <span>📅 {{ formatDate(version.created_at) }}</span>
-                  <span v-if="version.has_llm_result">✅ LLM 결과</span>
-                  <span v-if="version.has_flow_state">🔄 Flow 상태</span>
-                  <span v-if="version.has_ontology">🗄️ 온톨로지</span>
-                </div>
-              </div>
-              <div class="version-actions">
-                <button @click="loadVersion(version.id)" class="btn-primary btn-sm">불러오기</button>
-                <button @click="deleteVersion(version.id)" class="btn-danger btn-sm">삭제</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 저장 다이얼로그 -->
-    <div v-if="showSaveDialog" class="modal-overlay" @click.self="showSaveDialog = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>💾 버전 저장</h3>
-          <button @click="showSaveDialog = false" class="btn-close">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>버전 이름 *</label>
-            <input v-model="saveVersionName" placeholder="예: 온라인 쇼핑몰 v1" />
-          </div>
-          <div class="form-group">
-            <label>설명</label>
-            <textarea v-model="saveVersionDescription" rows="3" placeholder="이 버전에 대한 설명..." />
-          </div>
-          <div class="form-group">
-            <label>
-              <input type="checkbox" v-model="saveAsNewVersion" :disabled="!currentVersion" />
-              새 버전으로 저장 (기존 버전에서 파생)
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button @click="showSaveDialog = false" class="btn-secondary">취소</button>
-          <button @click="saveVersion" class="btn-success" :disabled="!saveVersionName.trim()">저장</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 변경사항 저장 모달 -->
-    <div v-if="showSaveChangesDialog" class="modal-overlay" @click.self="showSaveChangesDialog = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>💾 변경사항 저장</h3>
-          <button @click="showSaveChangesDialog = false" class="btn-close">×</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="currentVersion" class="form-group">
-            <p><strong>현재 버전:</strong> {{ currentVersion.name }} (v{{ currentVersion.version }})</p>
-            <div class="save-options">
-              <label class="radio-option" @click="saveChangesMode = 'update'">
-                <input type="radio" v-model="saveChangesMode" value="update" />
-                <div>
-                  <strong>기존 버전 업데이트</strong>
-                  <p class="option-description">현재 버전을 수정된 내용으로 업데이트합니다.</p>
-                </div>
-              </label>
-              <label class="radio-option" @click="saveChangesMode = 'new'">
-                <input type="radio" v-model="saveChangesMode" value="new" />
-                <div>
-                  <strong>새 버전으로 저장</strong>
-                  <p class="option-description">현재 버전에서 파생된 새 버전을 생성합니다.</p>
-                </div>
-              </label>
-            </div>
-          </div>
-          <div v-else class="form-group">
-            <p>새 버전으로 저장됩니다.</p>
-          </div>
-          <div v-if="saveChangesMode === 'new' || !currentVersion" class="form-group">
-            <label>버전 이름 *</label>
-            <input v-model="saveChangesVersionName" placeholder="예: 온라인 쇼핑몰 v1" />
-          </div>
-          <div v-if="saveChangesMode === 'new' || !currentVersion" class="form-group">
-            <label>설명</label>
-            <textarea v-model="saveChangesVersionDescription" rows="3" placeholder="이 버전에 대한 설명..." />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button @click="showSaveChangesDialog = false" class="btn-secondary">취소</button>
-          <button @click="saveChanges" class="btn-success" :disabled="(saveChangesMode === 'new' || !currentVersion) && !saveChangesVersionName.trim()">
-            저장
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Neo4j 온톨로지 선택 모달 -->
-    <div v-if="showOntologyVersionList" class="modal-overlay" @click.self="showOntologyVersionList = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>🗄️ Neo4j에서 온톨로지 불러오기</h3>
-          <button @click="showOntologyVersionList = false" class="btn-close">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="load-options">
-            <button @click="loadCurrentOntology" class="btn-primary load-option-btn">
-              📦 현재 Neo4j 온톨로지 전체 불러오기
+      
+      <div class="divider"></div>
+      
+      <div class="sidebar-footer">
+         <div v-if="eventStormResult" class="result-actions">
+            <button @click="openSaveChangesDialog" class="btn btn-sm btn-info">
+              💾 변경사항 저장
             </button>
-            <p class="option-description">Neo4j에 저장된 모든 ObjectType을 불러옵니다.</p>
-          </div>
-
-          <hr class="divider" />
-
-          <h4>또는 저장된 버전에서 불러오기:</h4>
-          <div v-if="ontologyVersions.length === 0" class="empty-state">
-            온톨로지가 연결된 버전이 없습니다.
-          </div>
-          <div v-else class="version-list">
-            <div v-for="version in ontologyVersions" :key="version.id" class="version-item">
-              <div class="version-info">
-                <h4>{{ version.name }} <span class="version-badge">v{{ version.version }}</span></h4>
-                <p>{{ version.description }}</p>
-                <div class="version-meta">
-                  <span>📅 {{ formatDate(version.created_at) }}</span>
-                  <span v-if="version.has_ontology">🗄️ 온톨로지 있음</span>
-                </div>
-              </div>
-              <div class="version-actions">
-                <button @click="loadVersionOntology(version.id)" class="btn-info btn-sm">
-                  온톨로지 불러오기
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+            <button @click="buildOntology" class="btn btn-sm btn-success">
+              ✅ 온톨로지 생성
+            </button>
+            <button @click="exportJSON" class="btn btn-sm btn-secondary">
+              📥 JSON
+            </button>
+         </div>
       </div>
     </div>
 
-    <div v-if="eventStormResult" class="visualization-wrapper">
-      <div class="toolbar">
-        <button @click="openSaveChangesDialog" class="btn-primary">
-          💾 변경사항 저장
-        </button>
-        <button @click="buildOntology" class="btn-success">
-          ✅ 온톨로지 생성 (Neo4j에 저장)
-        </button>
-        <button @click="exportJSON" class="btn-secondary">
-          📥 JSON 내보내기
-        </button>
-      </div>
-
-      <div class="visualization-panel">
+    <!-- Main Visualization Area -->
+    <div class="visualization-wrapper">
       <VueFlow
         class="event-storm-flow"
         v-model:nodes="nodes"
@@ -226,124 +84,227 @@
         :max-zoom="4"
         :connection-mode="ConnectionMode.Loose"
         :snap-to-grid="true"
-        :snap-grid="[15, 15]"
+        :snap-grid="[20, 20]"
         fit-view-on-init
         :nodes-draggable="true"
         :nodes-connectable="true"
         :edges-updatable="true"
         :delete-key-code="'Delete'"
       >
-        <Background />
+        <Background pattern-color="#e2e8f0" :gap="20" />
         <Controls />
         <MiniMap />
 
         <template #node-aggregate="{ data, selected }">
-          <div class="aggregate-node" :class="{ selected }">
+          <div class="aggregate-node card" :class="{ selected }">
             <Handle type="target" :position="Position.Left" class="node-handle" />
-            <h3>📦 {{ data.label }}</h3>
-
-            <div class="section">
-              <h4>Commands</h4>
-              <ul>
-                <li v-for="cmd in data.commands" :key="cmd.name">
-                  ⚡ {{ cmd.name }}
-                </li>
-              </ul>
+            <div class="node-header">
+              <h3>📦 {{ data.label }}</h3>
             </div>
 
-            <div class="section">
-              <h4>Events</h4>
-              <ul>
-                <li v-for="evt in data.events" :key="evt.name">
-                  📢 {{ evt.name }}
-                </li>
-              </ul>
+            <div class="node-body">
+              <div class="node-section commands">
+                <h4>⚡ Commands</h4>
+                <ul>
+                  <li v-for="cmd in data.commands" :key="cmd.name">
+                    {{ cmd.name }}
+                  </li>
+                </ul>
+              </div>
+
+              <div class="node-section events">
+                <h4>📢 Events</h4>
+                <ul>
+                  <li v-for="evt in data.events" :key="evt.name">
+                    {{ evt.name }}
+                  </li>
+                </ul>
+              </div>
             </div>
             <Handle type="source" :position="Position.Right" class="node-handle" />
           </div>
         </template>
       </VueFlow>
-
-      <div class="side-panel">
-        <div v-if="selectedNode" class="inspector-panel">
-          <div class="panel-header">
-            <h3>📦 {{ selectedNode.data.label }}</h3>
-            <button @click="deleteSelectedNode" class="btn-danger btn-sm">삭제</button>
+      
+      <!-- Right Inspector Panel -->
+      <div v-if="selectedNode || selectedEdge" class="inspector-panel card glass animate-fade-in">
+        <div class="panel-header">
+          <h3>{{ selectedNode ? '📦 Aggregate 편집' : '🔗 Policy 편집' }}</h3>
+          <button @click="selectedNode ? deleteSelectedNode() : deleteSelectedEdge()" class="btn-icon-danger">🗑️</button>
+        </div>
+        
+        <div v-if="selectedNode" class="inspector-content">
+           <div class="form-group">
+            <label>이름</label>
+            <input v-model="editNodeName" @blur="updateNodeName" class="premium-input" />
           </div>
-
-          <div class="edit-section">
-            <label>Aggregate 이름</label>
-            <input v-model="editNodeName" @blur="updateNodeName" />
-          </div>
-
-          <div class="edit-section">
+          
+          <div class="list-editor">
             <label>Commands</label>
-            <div v-for="(cmd, idx) in selectedNode.data.commands" :key="idx" class="list-item-editable">
-              <span class="item-icon">⚡</span>
+            <div v-for="(cmd, idx) in selectedNode.data.commands" :key="idx" class="list-item">
               <input
                 :value="cmd.name"
                 @blur="updateCommandName(idx, $event.target.value)"
                 @keyup.enter="$event.target.blur()"
-                class="item-name-input"
+                class="premium-input sm"
               />
-              <button @click="removeCommand(idx)" class="btn-remove">×</button>
+              <button @click="removeCommand(idx)" class="btn-icon-sm">×</button>
             </div>
             <div class="add-item">
-              <input v-model="newCommandName" placeholder="새 Command 이름" @keyup.enter="addCommand" />
-              <button @click="addCommand" class="btn-add">+</button>
+              <input v-model="newCommandName" placeholder="New Command" @keyup.enter="addCommand" class="premium-input sm" />
+              <button @click="addCommand" class="btn-icon-add">+</button>
             </div>
           </div>
 
-          <div class="edit-section">
+          <div class="list-editor">
             <label>Events</label>
-            <div v-for="(evt, idx) in selectedNode.data.events" :key="idx" class="list-item-editable">
-              <span class="item-icon">📢</span>
+            <div v-for="(evt, idx) in selectedNode.data.events" :key="idx" class="list-item">
               <input
                 :value="evt.name"
                 @blur="updateEventName(idx, $event.target.value)"
                 @keyup.enter="$event.target.blur()"
-                class="item-name-input"
+                class="premium-input sm"
               />
-              <button @click="removeEvent(idx)" class="btn-remove">×</button>
+              <button @click="removeEvent(idx)" class="btn-icon-sm">×</button>
             </div>
             <div class="add-item">
-              <input v-model="newEventName" placeholder="새 Event 이름" @keyup.enter="addEvent" />
-              <button @click="addEvent" class="btn-add">+</button>
+              <input v-model="newEventName" placeholder="New Event" @keyup.enter="addEvent" class="premium-input sm" />
+              <button @click="addEvent" class="btn-icon-add">+</button>
             </div>
           </div>
         </div>
 
-        <div v-if="selectedEdge" class="inspector-panel">
-          <div class="panel-header">
-            <h3>🔗 {{ selectedEdge.label || 'Policy' }}</h3>
-            <button @click="deleteSelectedEdge" class="btn-danger btn-sm">삭제</button>
-          </div>
-
-          <div class="edit-section">
+        <div v-if="selectedEdge" class="inspector-content">
+           <div class="form-group">
             <label>Policy 이름</label>
-            <input v-model="editEdgeLabel" @blur="updateEdgeLabel" />
+            <input v-model="editEdgeLabel" @blur="updateEdgeLabel" class="premium-input" />
           </div>
-
-          <div class="edge-info">
-            <p><strong>Source:</strong> {{ selectedEdge.source }}</p>
-            <p><strong>Target:</strong> {{ selectedEdge.target }}</p>
+          <div class="edge-info text-sm text-muted">
+            <p>From: {{ selectedEdge.source }}</p>
+            <p>To: {{ selectedEdge.target }}</p>
           </div>
         </div>
-
-        <div v-if="!selectedNode && !selectedEdge" class="help-panel">
-          <h3>도움말</h3>
-          <ul>
-            <li>노드 클릭: 선택 및 편집</li>
-            <li>노드 드래그: 위치 이동</li>
-            <li>엣지 클릭: 관계 편집</li>
-            <li>노드 연결: 핸들을 드래그하여 연결</li>
-            <li>Delete 키: 선택 항목 삭제</li>
-          </ul>
-          <button @click="addNewAggregate" class="btn-primary">+ 새 Aggregate 추가</button>
-        </div>
-      </div>
       </div>
     </div>
+
+    <!-- Modals (Version List, Save, etc.) -->
+    <!-- Reusing existing logic but styling them -->
+    <div v-if="showVersionList" class="modal-overlay glass" @click.self="showVersionList = false">
+      <div class="modal-content card animate-fade-in">
+        <div class="modal-header">
+          <h3>📂 저장된 버전</h3>
+          <button @click="showVersionList = false" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+           <div v-if="versions.length === 0" class="empty-state">
+            저장된 버전이 없습니다.
+          </div>
+          <div v-else class="version-list">
+            <div v-for="version in versions" :key="version.id" class="version-item card">
+              <div class="version-info">
+                <h4>{{ version.name }} <span class="badge-sm">v{{ version.version }}</span></h4>
+                <p>{{ version.description }}</p>
+                <div class="version-meta text-xs text-muted">
+                  <span>{{ formatDate(version.created_at) }}</span>
+                </div>
+              </div>
+              <div class="version-actions">
+                <button @click="loadVersion(version.id)" class="btn btn-sm btn-primary">Load</button>
+                <button @click="deleteVersion(version.id)" class="btn btn-sm btn-danger">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showSaveDialog" class="modal-overlay glass" @click.self="showSaveDialog = false">
+      <div class="modal-content card animate-fade-in">
+        <div class="modal-header">
+          <h3>💾 버전 저장</h3>
+          <button @click="showSaveDialog = false" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>버전 이름</label>
+            <input v-model="saveVersionName" placeholder="예: 온라인 쇼핑몰 v1" class="premium-input" />
+          </div>
+          <div class="form-group">
+            <label>설명</label>
+            <textarea v-model="saveVersionDescription" rows="3" class="premium-input" />
+          </div>
+          <div class="form-group checkbox">
+             <label>
+              <input type="checkbox" v-model="saveAsNewVersion" :disabled="!currentVersion" />
+              새 버전으로 저장
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="showSaveDialog = false" class="btn btn-secondary">취소</button>
+          <button @click="saveVersion" class="btn btn-success" :disabled="!saveVersionName.trim()">저장</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Similar styling for other modals... -->
+    <div v-if="showSaveChangesDialog" class="modal-overlay glass" @click.self="showSaveChangesDialog = false">
+      <div class="modal-content card animate-fade-in">
+        <div class="modal-header">
+          <h3>💾 변경사항 저장</h3>
+          <button @click="showSaveChangesDialog = false" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+           <div class="save-options">
+              <label class="radio-card" :class="{ active: saveChangesMode === 'update' }" @click="saveChangesMode = 'update'">
+                <input type="radio" v-model="saveChangesMode" value="update" />
+                <div class="radio-content">
+                  <strong>업데이트</strong>
+                  <p>현재 버전을 덮어씁니다.</p>
+                </div>
+              </label>
+              <label class="radio-card" :class="{ active: saveChangesMode === 'new' }" @click="saveChangesMode = 'new'">
+                <input type="radio" v-model="saveChangesMode" value="new" />
+                <div class="radio-content">
+                  <strong>새 버전</strong>
+                  <p>새로운 버전을 생성합니다.</p>
+                </div>
+              </label>
+           </div>
+           
+           <div v-if="saveChangesMode === 'new' || !currentVersion" class="new-version-inputs animate-fade-in">
+              <input v-model="saveChangesVersionName" placeholder="버전 이름" class="premium-input" />
+              <textarea v-model="saveChangesVersionDescription" placeholder="설명" class="premium-input" />
+           </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="showSaveChangesDialog = false" class="btn btn-secondary">취소</button>
+          <button @click="saveChanges" class="btn btn-success">저장</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showOntologyVersionList" class="modal-overlay glass" @click.self="showOntologyVersionList = false">
+       <div class="modal-content card animate-fade-in">
+        <div class="modal-header">
+          <h3>🗄️ 온톨로지 불러오기</h3>
+          <button @click="showOntologyVersionList = false" class="btn-close">×</button>
+        </div>
+        <div class="modal-body">
+           <button @click="loadCurrentOntology" class="btn btn-primary btn-block mb-4">
+              📦 현재 Neo4j 온톨로지 전체
+            </button>
+            <div class="divider"><span>OR</span></div>
+            <div class="version-list">
+               <div v-for="version in ontologyVersions" :key="version.id" class="version-item card">
+                  <h4>{{ version.name }}</h4>
+                  <button @click="loadVersionOntology(version.id)" class="btn btn-sm btn-info">Load</button>
+               </div>
+            </div>
+        </div>
+       </div>
+    </div>
+
   </div>
 </template>
 
@@ -1259,510 +1220,455 @@ onMounted(() => {
 <style scoped>
 .event-storm-container {
   display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 1rem;
-  gap: 1rem;
-  overflow: hidden;
-}
-
-.input-panel {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.input-panel h2 {
-  margin-top: 0;
-}
-
-.input-panel textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-family: inherit;
-  resize: vertical;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.btn-primary {
-  padding: 0.75rem 1.5rem;
-  background: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-  flex: 1;
-}
-
-.btn-primary:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.error-message {
-  margin-top: 1rem;
-  padding: 0.75rem;
-  background: #ffebee;
-  color: #c62828;
-  border-radius: 4px;
-}
-
-.visualization-wrapper {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.visualization-panel {
-  flex: 1;
-  display: flex;
   flex-direction: row;
-  gap: 1rem;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
-}
-
-.toolbar {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-success, .btn-secondary {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.btn-success {
-  background: #4CAF50;
-  color: white;
-}
-
-.btn-secondary {
-  background: #2196F3;
-  color: white;
-}
-
-.btn-danger {
-  background: #f44336;
-  color: white;
-}
-
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.85rem;
-}
-
-.event-storm-flow {
-  flex: 1;
-  min-height: 500px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Vue Flow Controls와 MiniMap이 보이도록 */
-.event-storm-flow :deep(.vue-flow__controls) {
-  z-index: 10 !important;
-  position: absolute !important;
-  top: 10px !important;
-  left: 10px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 4px !important;
-  background: white !important;
-  border: 1px solid #ddd !important;
-  border-radius: 4px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-  padding: 4px !important;
-}
-
-.event-storm-flow :deep(.vue-flow__controls-button) {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 32px !important;
-  height: 32px !important;
-  min-width: 32px !important;
-  min-height: 32px !important;
-  padding: 0 !important;
-  border: 1px solid #ddd !important;
-  background: white !important;
-  cursor: pointer !important;
-  border-radius: 4px !important;
-  color: #333 !important;
-  font-size: 16px !important;
-}
-
-.event-storm-flow :deep(.vue-flow__controls-button:hover) {
-  background: #f5f5f5 !important;
-  border-color: #2196F3 !important;
-}
-
-.event-storm-flow :deep(.vue-flow__controls-button svg) {
-  width: 16px !important;
-  height: 16px !important;
-  display: block !important;
-}
-
-.event-storm-flow :deep(.vue-flow__minimap) {
-  z-index: 10 !important;
-  position: absolute !important;
-  top: 10px !important;
-  right: 370px !important; /* 사이드바 너비(350px) + gap(20px) */
-}
-
-.side-panel {
-  width: 350px;
-  flex-shrink: 0;
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  padding: 1.5rem;
+  gap: 1.5rem;
+  overflow: hidden;
+  background: var(--bg-color);
 }
 
-.aggregate-node {
-  padding: 1rem;
-  background: white;
-  border: 2px solid #4CAF50;
-  border-radius: 8px;
-  min-width: 200px;
-  position: relative;
-}
-
-.aggregate-node.selected {
-  border-color: #2196F3;
-  box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
-}
-
-.aggregate-node h3 {
-  margin: 0 0 0.5rem 0;
-  color: #4CAF50;
-}
-
-.aggregate-node .section {
-  margin-bottom: 0.5rem;
-}
-
-.aggregate-node h4 {
-  margin: 0.5rem 0 0.25rem 0;
-  font-size: 0.9rem;
-  color: #666;
-}
-
-.aggregate-node ul {
-  margin: 0;
-  padding-left: 1.5rem;
-  font-size: 0.85rem;
-}
-
-.node-handle {
-  width: 12px !important;
-  height: 12px !important;
-  background: #2196F3 !important;
-  border: 2px solid white !important;
-  border-radius: 50% !important;
-}
-
-.inspector-panel {
-  padding: 1rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+/* Sidebar Panel */
+.sidebar-panel {
+  width: 380px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  gap: 1rem;
+  z-index: 5;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
-.panel-header h3 {
+.panel-header h2 {
+  font-size: 1.25rem;
+  margin: 0;
+  background: var(--header-gradient);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.version-badge-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface-hover);
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 0.5rem;
+}
+
+.badge-primary {
+  background: var(--primary-color);
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.input-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.premium-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-color);
+  transition: all 0.2s;
+  font-family: inherit;
+  resize: none;
+}
+
+.premium-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  outline: none;
+}
+
+.premium-input.sm {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+textarea.premium-input {
+  flex: 1;
+  resize: none;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-block {
+  width: 100%;
+  justify-content: center;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  padding: 0.75rem;
+  background: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.divider span {
+  background: var(--surface-color);
+  padding: 0 0.5rem;
+  color: var(--text-light);
+  font-size: 0.75rem;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+}
+
+.result-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.5rem;
+}
+
+/* Visualization Area */
+.visualization-wrapper {
+  flex: 1;
+  position: relative;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  background: white;
+  border: 1px solid var(--border-color);
+}
+
+.event-storm-flow {
+  width: 100%;
+  height: 100%;
+}
+
+/* Aggregate Node */
+.aggregate-node {
+  min-width: 280px;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: all 0.2s;
+}
+
+.aggregate-node.selected {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-color), var(--shadow-lg);
+}
+
+.node-header {
+  background: var(--header-gradient);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.node-header h3 {
+  color: white;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.node-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.node-section h4 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.25rem;
+}
+
+.node-section ul {
+  list-style: none;
+  padding: 0;
   margin: 0;
 }
 
-.edit-section {
-  margin-bottom: 1rem;
-}
-
-.edit-section label {
-  display: block;
-  font-weight: bold;
+.node-section li {
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
   margin-bottom: 0.25rem;
-  color: #666;
+  color: var(--text-primary);
 }
 
-.edit-section input {
-  width: 100%;
+.commands li {
+  border-left: 3px solid var(--secondary-color);
+}
+
+.events li {
+  border-left: 3px solid var(--accent-color);
+}
+
+.node-handle {
+  width: 10px !important;
+  height: 10px !important;
+  background: var(--text-secondary) !important;
+  border: 2px solid white !important;
+}
+
+/* Inspector Panel */
+.inspector-panel {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 300px;
+  padding: 1.5rem;
+  z-index: 10;
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+}
+
+.btn-icon, .btn-icon-sm, .btn-icon-add, .btn-icon-danger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s;
+}
+
+.btn-icon { font-size: 1.25rem; padding: 0.25rem; }
+.btn-icon:hover { background: var(--surface-hover); }
+
+.btn-icon-sm { 
+  color: var(--text-light); 
+  padding: 0.25rem;
+}
+.btn-icon-sm:hover { color: #ef4444; background: #fee2e2; }
+
+.btn-icon-add {
+  background: var(--primary-color);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+.btn-icon-add:hover { background: var(--primary-hover); }
+
+.btn-icon-danger {
+  color: #ef4444;
   padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-sizing: border-box;
+}
+.btn-icon-danger:hover { background: #fee2e2; }
+
+.list-editor {
+  margin-top: 1rem;
+}
+
+.list-editor label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
 }
 
 .list-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  background: #f9f9f9;
-  border-radius: 4px;
-  margin-bottom: 0.25rem;
-}
-
-.list-item-editable {
-  display: flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  background: #f9f9f9;
-  border-radius: 4px;
-  margin-bottom: 0.25rem;
   gap: 0.5rem;
-}
-
-.item-icon {
-  flex-shrink: 0;
-}
-
-.item-name-input {
-  flex: 1;
-  padding: 0.25rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background: white;
-}
-
-.item-name-input:focus {
-  border-color: #2196F3;
-  outline: none;
-}
-
-.btn-remove {
-  background: #f44336;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+  align-items: center;
 }
 
 .add-item {
   display: flex;
   gap: 0.5rem;
-}
-
-.add-item input {
-  flex: 1;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.btn-add {
-  background: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-}
-
-.edge-info {
-  background: #f5f5f5;
-  padding: 0.5rem;
-  border-radius: 4px;
-}
-
-.edge-info p {
-  margin: 0.25rem 0;
-}
-
-.help-panel {
-  padding: 1rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.help-panel h3 {
-  margin-top: 0;
-}
-
-.help-panel ul {
-  padding-left: 1.5rem;
-}
-
-.help-panel li {
-  margin-bottom: 0.5rem;
-}
-
-/* 버전 관리 스타일 */
-.panel-top-bar {
-  display: flex;
-  justify-content: space-between;
+  margin-top: 0.5rem;
   align-items: center;
-  margin-bottom: 1rem;
 }
 
-.panel-top-bar h2 {
-  margin: 0;
-}
-
-.version-controls {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-info {
-  background: #17a2b8;
-  color: white;
-}
-
-.btn-link {
+.btn-text-xs {
   background: none;
   border: none;
-  color: #2196F3;
+  color: var(--primary-color);
+  font-size: 0.75rem;
   cursor: pointer;
   text-decoration: underline;
-  padding: 0;
 }
 
-.current-version-info {
-  background: #e3f2fd;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
+/* Modal Styles */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  z-index: 100;
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 1000;
+  justify-content: center;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
 }
 
 .modal-content {
-  background: white;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
+  width: 100%;
+  max-width: 500px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
 }
 
 .modal-header {
-  padding: 1rem;
-  border-bottom: 1px solid #ddd;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.modal-header h3 {
-  margin: 0;
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
 .btn-close {
   background: none;
   border: none;
   font-size: 1.5rem;
+  color: var(--text-light);
   cursor: pointer;
-  color: #666;
+  line-height: 1;
 }
-
-.modal-body {
-  padding: 1rem;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.modal-footer {
-  padding: 1rem;
-  border-top: 1px solid #ddd;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 2rem;
-  color: #666;
-}
+.btn-close:hover { color: var(--text-primary); }
 
 .version-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .version-item {
-  border: 1px solid #ddd;
-  border-radius: 8px;
   padding: 1rem;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .version-info h4 {
-  margin: 0 0 0.5rem 0;
-}
-
-.version-badge {
-  background: #4CAF50;
-  color: white;
-  padding: 0.1rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  margin-left: 0.5rem;
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
 }
 
 .version-info p {
   margin: 0 0 0.5rem 0;
-  color: #666;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
-.version-meta {
+.badge-sm {
+  background: var(--surface-hover);
+  border: 1px solid var(--border-color);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.radio-card {
   display: flex;
   gap: 1rem;
-  font-size: 0.85rem;
-  color: #888;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.version-actions {
+.radio-card:hover {
+  border-color: var(--primary-color);
+  background: var(--surface-hover);
+}
+
+.radio-card.active {
+  border-color: var(--primary-color);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.radio-content strong {
+  display: block;
+  color: var(--text-primary);
+}
+
+.radio-content p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.new-version-inputs {
+  margin-top: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .form-group {
@@ -1771,109 +1677,20 @@ onMounted(() => {
 
 .form-group label {
   display: block;
-  margin-bottom: 0.25rem;
-  font-weight: bold;
-  color: #666;
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-
-.form-group input[type="checkbox"] {
-  width: auto;
-  margin-right: 0.5rem;
-}
-
-/* 온톨로지 선택 모달 스타일 */
-.load-options {
-  text-align: center;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-}
-
-.load-option-btn {
-  width: 100%;
-  padding: 1rem;
-  font-size: 1rem;
   margin-bottom: 0.5rem;
+  font-weight: 500;
+  font-size: 0.875rem;
 }
 
-.option-description {
-  margin: 0;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.divider {
-  border: none;
-  border-top: 1px solid #ddd;
-  margin: 1.5rem 0;
-}
-
-.modal-body h4 {
-  margin: 0 0 1rem 0;
-  color: #333;
-}
-
-.save-options {
+.form-group.checkbox label {
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.radio-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.radio-option:hover {
-  border-color: #2196F3;
-  background: #f5f5f5;
-}
-
-.radio-option input[type="radio"] {
-  margin-top: 0.25rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: normal;
   cursor: pointer;
 }
 
-.radio-option input[type="radio"]:checked + div {
-  color: #2196F3;
-}
-
-.radio-option input[type="radio"]:checked ~ div,
-.radio-option:has(input[type="radio"]:checked) {
-  border-color: #2196F3;
-  background: #e3f2fd;
-}
-
-.radio-option > div {
-  flex: 1;
-}
-
-.radio-option strong {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-size: 1rem;
-}
-
-.option-description {
-  margin: 0;
-  color: #666;
-  font-size: 0.9rem;
+.form-group.checkbox input {
+  width: auto;
 }
 </style>
